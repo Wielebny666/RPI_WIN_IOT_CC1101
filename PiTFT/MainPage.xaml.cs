@@ -46,6 +46,10 @@ namespace PiTFT
             txPin = gpio.OpenPin(CCRegister.CC1101_GDO0);
             var tmp = txPin.PinNumber;
             txPin.SetDriveMode(GpioPinDriveMode.Output);
+            var test1 = txPin.IsDriveModeSupported(GpioPinDriveMode.OutputOpenDrain);
+            test1 = txPin.IsDriveModeSupported(GpioPinDriveMode.OutputOpenDrainPullUp);
+            test1 = txPin.IsDriveModeSupported(GpioPinDriveMode.OutputOpenSource);
+            test1 = txPin.IsDriveModeSupported(GpioPinDriveMode.OutputOpenSourcePullDown);
 
             //rf.SetBaudRate(1);
             //rf.SetCarrierFrequency(433);
@@ -74,19 +78,27 @@ namespace PiTFT
             //tft.Rotation = true;
             //tft.InitAll();
 
-            //while (true)
-            //{
-            //    txPin.Write(GpioPinValue.High);
-            //    rf.ShortWait(100);
-            //    txPin.Write(GpioPinValue.Low);
-            //    rf.ShortWait(100);
-            //}
+            rf.SetTxState();
+            while (true)
+            {
+                //rf.SendData(new byte[] { 0 });
+                //rf.SendData(new byte[] { 0b0000_1111 });
+                //rf.SendData(new byte[] { 0b1111_0000 });
+                //rf.SendData(new byte[] { 0b1111_1111 });
+                //rf.SendData(new byte[] { 0b1000_0000 });
+                //rf.SendData(new byte[] { 0b0000_0111 });
+
+                txPin.Write(GpioPinValue.High);
+                rf.ShortWait(1);
+                txPin.Write(GpioPinValue.Low);
+                rf.ShortWait(1);
+            }
 
             // Create timer to refresh display
             DispatcherTimer dispatcherTimer = new DispatcherTimer();
             dispatcherTimer.Interval = refreshRate;
             dispatcherTimer.Tick += DispatcherTimer_Tick;
-            //dispatcherTimer.Start();
+            dispatcherTimer.Start();
         }
 
         /// <summary>
@@ -97,12 +109,12 @@ namespace PiTFT
             if (rf != null)
             {
                 
-                rf.SendData(new byte[] { 0 });
+                rf.SendData(new byte[] { 1 });
                 //txPin.Write(GpioPinValue.High);
-                rf.ShortWait(100);
+               // rf.ShortWait(100);
                 //txPin.Write(GpioPinValue.Low);
-                rf.SendData(new byte[] { 0, 0, 0, 0 });
-                rf.ShortWait(100);
+                //rf.SendData(new byte[] { 1, 0  });
+                //rf.ShortWait(100);
             }
 
             if (tft != null && tft.Initialized)

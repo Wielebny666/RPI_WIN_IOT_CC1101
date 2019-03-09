@@ -23,117 +23,13 @@ namespace PiTFT
         private SerialDevice serialPort;
 
         private GpioPin rcvPin;
-        private GpioPin txPin;
+        //private GpioPin txPin;
+
+        private bool TxFinish = false;
 
         public int PartNumber { get; internal set; }
         public int Version { get; internal set; }
 
-        public double CarrierFrequency
-        {
-            get
-            {
-                double firstRegisterByte = CCRegister.ConfigRegisterValues["FREQ2"];
-                double secondRegisterByte = CCRegister.ConfigRegisterValues["FREQ1"];
-                double thirdRegisterByte = CCRegister.ConfigRegisterValues["FREQ0"];
-
-                firstRegisterByte = firstRegisterByte * 26;
-                secondRegisterByte = secondRegisterByte / 255 * 26;
-                thirdRegisterByte = thirdRegisterByte / 255 / 255 * 26;
-                var toRound = firstRegisterByte + +secondRegisterByte + +thirdRegisterByte;
-
-                return Math.Round(toRound, 4);
-            }
-        }
-
-        public byte ModulationType
-        {
-            get
-            {
-                byte data = CCRegister.ConfigRegisterValues["MDMCFG2"];
-                data = (byte)((data & 0x70) >> 4);
-                return data;
-
-            }
-        }
-
-        public double BaudRate
-        {
-            get
-            {
-                uint baudRateExponent = ((uint)CCRegister.ConfigRegisterValues["MDMCFG4"]) & 0x0F;
-                uint baudRateMantissa = CCRegister.ConfigRegisterValues["MDMCFG3"];
-
-                double baudRate = 1000000.0 * CCRegister.CC1101_CLOCK_FREQUENCY * (256 + baudRateMantissa) * Math.Pow(2, baudRateExponent) / Math.Pow(2, 28);
-                return Math.Round(baudRate / 1000.0, 4);
-            }
-        }
-
-        public double DeviationFrequency
-        {
-            get
-            {
-                byte data = CCRegister.ConfigRegisterValues["DEVIATN"];
-                byte deviationExponent = (byte)(data & 0x70);
-                byte deviationMantissa = (byte)(data & 0x07);
-
-                double deviation = 1000000.0 * CCRegister.CC1101_CLOCK_FREQUENCY * (8 + deviationMantissa) * Math.Pow(2, deviationExponent) / Math.Pow(2, 17);
-                return Math.Round(deviation / 1000.0, 4);
-            }
-        }
-
-        public int PreambleNum
-        {
-            get
-            {
-                byte data = (byte)(CCRegister.ConfigRegisterValues["MDMCFG1"] & 0x8F);
-                return data;
-            }
-        }
-
-        public bool ManchesterEncoding
-        {
-            get
-            {
-                byte data = (byte)((CCRegister.ConfigRegisterValues["MDMCFG2"] & 0x08) >> 3);
-                return data == 1 ? true : false;
-            }
-        }
-
-        public bool CrcEnable
-        {
-            get
-            {
-                byte data = (byte)((CCRegister.ConfigRegisters["PKTCTRL0"] & 0x04) >> 2);
-                return data == 1 ? true : false;
-            }
-        }
-
-        public byte Channel
-        {
-            get
-            {
-                byte data = CCRegister.ConfigRegisterValues["CHANNR"];
-                return data;
-            }
-        }
-
-        public byte SyncMode
-        {
-            get
-            {
-                byte data = (byte)(CCRegister.ConfigRegisterValues["MDMCFG2"] & 0x07);
-                return data;
-            }
-        }
-
-        public byte ControlsAddressCheck
-        {
-            get
-            {
-                byte data = (byte)(CCRegister.ConfigRegisterValues["PKTCTRL1"] & 0x03);
-                return data;
-            }
-        }
         /// <summary>
         /// Initialize interfaces and display
         /// </summary>
@@ -173,9 +69,9 @@ namespace PiTFT
 
             // GetInfo();
             SetIdleState();
-            //EnterRecieveState();
+            TxFinish = false;
         }
-        private bool TxFinish = false;
+
         /// <summary>
         /// Initialize GPIO interface
         /// </summary>
@@ -188,8 +84,6 @@ namespace PiTFT
                 rcvPin = gpio.OpenPin(CCRegister.CC1101_GDO2);
                 rcvPin.SetDriveMode(GpioPinDriveMode.Input);
                 rcvPin.ValueChanged += RcvPin_ValueChanged;
-
-
             }
             catch (Exception ex)
             {
@@ -897,7 +791,7 @@ namespace PiTFT
         /// <param name="delay">Miliseconds</param>
         public void ShortWait(int delay)
         {
-            Debug.WriteLine(string.Format("Waiting for CC1101 - {0} ms", delay), "Info");
+            //Debug.WriteLine(string.Format("Waiting for CC1101 - {0} ms", delay), "Info");
             Thread.Sleep(delay);
         }
 
@@ -905,27 +799,28 @@ namespace PiTFT
         public bool SendData(byte[] dataToTransmit)
         {
             Debug.WriteLine("Writing TXFIFO", "Info");
-            bool status = false; ;
+            bool status = false;
             //byte marcState;
 
             var dataToTransmitInverted = new List<byte>();
             dataToTransmitInverted.Add((byte)dataToTransmit.Length);
             dataToTransmitInverted.AddRange(dataToTransmit);
 
-            //SetTxState();
             //while (GetMarcState() != CCRegister.MARCSTATE_TX)
             //{
             //    ShortWait(200);
             //}
+            
 
             WriteBurstRegister(CCRegister.CC1101_TXFIFO, dataToTransmitInverted.ToArray());
-
+            SetTxState();
             //GetTxInfo();
             //GetGDOxInfo();
 
             // CCA enabled: will enter TX state only if the channel is clear
-            SetTxState();
-            ShortWait(100);
+            //SetTxState();
+            //ShortWait(10);
+
             //while (GetMarcState() != CCRegister.MARCSTATE_IDLE)
             //{
             //    ShortWait(100);
@@ -949,15 +844,15 @@ namespace PiTFT
             //    var marcState = GetMarcState();
             //};
 
+            SetIdleState();
+
             //SetIdleState();
+            byte marcState;
+            while ((marcState = GetMarcState()) != CCRegister.MARCSTATE_IDLE)
+            {
+                ShortWait(10);
+            }
             SetFlushTx();
-
-            //SetIdleState();
-            //while (GetMarcState() != CCRegister.MARCSTATE_IDLE)
-            //{
-            //    ShortWait(200);
-            //}
-
             return status;
         }
     }
