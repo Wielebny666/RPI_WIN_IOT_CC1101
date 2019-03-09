@@ -104,6 +104,7 @@
     <AppxManifest Include="Package.appxmanifest">
       <SubType>Designer</SubType>
     </AppxManifest>
+    <None Include="Readme.md" />
     <None Include="WinIoT.pfx" />
   </ItemGroup>
   <ItemGroup>
